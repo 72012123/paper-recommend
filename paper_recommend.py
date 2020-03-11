@@ -2,17 +2,19 @@ import xlwings as xw
 import numpy as np
 import copy
 
+wa = xw.Book("frequentitem.xlsx")
 wb = xw.Book("author.xlsx")
 wc = xw.Book("keyword.xlsx")
 wd = xw.Book("sequencial.xlsx")
 we = xw.Book()
 
+read_item = wa.sheets[0]
 read_author = wb.sheets[0]
 read_keyword = wc.sheets[0]
 read_sequence = wd.sheets[0]
 writeKeyword = we.sheets['工作表1']#writeKeyword.cells(x, y).value
 
-threshold = 0  # 0.03
+threshold = 0.3  #author average = 4.92794
 dataSize = 156384
 keywordSize = 20343
 author = np.zeros((2, dataSize))
@@ -22,10 +24,11 @@ sequence_list = [[0 for y in range(8)] for x in range(dataSize)]
 matchweight = [0 for x in range(dataSize)]
 matchtable = [[0 for y in range(0)] for x in range(keywordSize)]  # 每個keyword配對成功的
 matchnumber = [0 for x in range(keywordSize)]  # 每個keyword組合符合的數量
+maxlayer = []
 layer = []
 layer0 = []
 layer1 = []
-layer2 = []
+layercompare = []  # 用來確認sequence是否包含keyword
 layerTable = []
 templayerTable = []
 keywordweight = []  # 每個sequence的權重
@@ -39,6 +42,8 @@ maxsequencelength = 0  # 找最長的sequence長度
 maxsequencesupport = 0  # 找最大的support
 keywordorder = 0
 sequenceorder = 1
+itemposition = 0  # item在frequentitem的位置
+
 
 def sequencelength(sequence):
   return sum(len(i) for i in sequence)
@@ -59,17 +64,27 @@ def delzero(sequenceset):
 def sequencesuperset(sequence, match):
     copytemp = copy.deepcopy(match)
     for i in range(len(sequence)):
-        if len(match) > 1:
-          if set(sequence[i]).issuperset(copytemp[0]):
-              copytemp.pop(0)
-        else:
-          if set(sequence[i]).issuperset(copytemp):
-              return i + 1
+        if set(sequence[i]).issuperset(copytemp[0]):
+            copytemp.pop(0)
         if not copytemp:
             return i + 1
     return -1
 
 
+def finditemposition(item):
+    for i in range(len(itemset)):
+        if itemset[i] == item:
+            return i
+
+
+def checkitem(item, match):
+    for i in range(len(item)):
+        if sequencesuperset(item[i], match):
+            return True
+    return False
+
+itemset = read_item.range('a1:a20343').value
+itemset = [round(x) for x in itemset]
 author = read_author.range('a2:b156385').value
 author = [[round(x) for x in y] for y in author]
 keyword = read_keyword.range('a2:a20344').value
@@ -92,53 +107,35 @@ for i in range(dataSize):
 
 for i in range(keywordSize):  # 找出單個keyword位置keywordSize
     layer0.append(keyword[i])
+    matchtable[i].append(keyword[i])
+    itemposition = finditemposition(keyword[i])
     layer.append(layer0)
+    layercompare.append(layer0)
     print(layer0)
-    for j in range(100):  # dataSize
-        findkeyword = sequencesuperset(sequence_list[j], layer0)
-        if len(sequence_list[j]) > findkeyword > 0:
+    for j in range(dataSize):  # dataSize
+        findkeyword = sequencesuperset(sequence_list[j], layer)
+        if findkeyword > 0:
             paperkeyword.append(j)
-            for k in range(findkeyword, len(sequence_list[j])):
+            for k in range(len(sequence_list[j])):
                 for x in sequence_list[j][k]:
                     # 把x出現的次數記錄在matchnumber
                     for l in range(keywordSize):  # keywordSize
                         if x == keyword[l]:
                             matchnumber[l] = matchnumber[l] + matchweight[j]
     for j in range(keywordSize):  # keywordSize
-        if matchnumber[j] > threshold:
+        if matchnumber[j] > threshold and finditemposition(keyword[j]) < itemposition:
             matchtable[i].append(keyword[j])
         matchnumber[j] = 0
-
-    for x in range(4):
+    print(len(matchtable[i]), len(paperkeyword))
+    layer = []
+    for x in range(3):
         if (x % 2) == 0:
-            for j in range(len(matchtable[i])):
-                layer1.append(matchtable[i][j])
-                layer.append(layer1)
-                #  print(layer)
-                for k in range(len(paperkeyword)):
-                    if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
-                        sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
-                if sumofmatchweight > threshold:
-                    copylayer = copy.deepcopy(layer)
-                    templayerTable.append(copylayer)
-                    tempkeywordweight.append(sumofmatchweight)
-                    #  print(copylayer, sumofmatchweight)
-                sumofmatchweight = 0
-                layer1 = []
-                layer.pop(1)
-            if not templayerTable:
-                break
-            layerTable = copy.deepcopy(templayerTable)
-            keywordweight = copy.deepcopy(tempkeywordweight)
-            templayerTable = []
-            tempkeywordweight = []
-        else:
-            for j in range(len(layerTable)):
-                for m in range(len(matchtable[i])):
-                    layer = copy.deepcopy(layerTable[j])
-                    if layer[(x // 2 + 1)][0] < matchtable[i][m]:
-                        layer = copy.deepcopy(layerTable[j])
-                        layer[(x // 2 + 1)].append(matchtable[i][m])
+            if not layerTable:
+                for j in range(len(matchtable[i]) - 1):
+                    for m in range(j + 1, len(matchtable[i])):
+                        layer1.append(matchtable[i][j])
+                        layer1.append(matchtable[i][m])
+                        layer.append(layer1)
                         # print(layer)
                         for k in range(len(paperkeyword)):
                             if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
@@ -147,30 +144,88 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                             copylayer = copy.deepcopy(layer)
                             layerTable.append(copylayer)
                             keywordweight.append(sumofmatchweight)
-                            #  print(copylayer, sumofmatchweight)
+                            # print(copylayer, sumofmatchweight)
+                            if sequencelength(copylayer) > maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                maxsequencelength = sequencelength(copylayer)
+                                maxsequencesupport = sumofmatchweight
+                                maxlayer = copy.deepcopy(copylayer)
+                            elif sequencelength(copylayer) == maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                if sumofmatchweight > maxsequencesupport:
+                                    maxlayer = copy.deepcopy(copylayer)
+                                    maxsequencesupport = sumofmatchweight
                         sumofmatchweight = 0
+                        layer1 = []
+                        layer.pop()
+            else:
+                for j in range(len(layerTable)):
+                    for m in range(len(matchtable[i])):
+                        layer = copy.deepcopy(layerTable[j])
+                        if layer[(x // 2)][0] < matchtable[i][m]:
+                            layer = copy.deepcopy(layerTable[j])
+                            layer[(x // 2)].append(matchtable[i][m])
+                            # print(layer)
+                            for k in range(len(paperkeyword)):
+                                if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
+                                    sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
+                            if sumofmatchweight > threshold:
+                                copylayer = copy.deepcopy(layer)
+                                layerTable.append(copylayer)
+                                keywordweight.append(sumofmatchweight)
+                                # print(copylayer, sumofmatchweight)
+                                if sequencelength(copylayer) > maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                    maxsequencelength = sequencelength(copylayer)
+                                    maxsequencesupport = sumofmatchweight
+                                    maxlayer = copy.deepcopy(copylayer)
+                                elif sequencelength(copylayer) == maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                    if sumofmatchweight > maxsequencesupport:
+                                        maxlayer = copy.deepcopy(copylayer)
+                                        maxsequencesupport = sumofmatchweight
+                            sumofmatchweight = 0
+        else:
+            for j in range(len(layerTable)):
+                for m in range(len(matchtable[i])):
+                    layer = copy.deepcopy(layerTable[j])
+                    layer1.append(matchtable[i][m])
+                    layer.append(layer1)
+                    # print(layer)
+                    for k in range(len(paperkeyword)):
+                        if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
+                            sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
+                        if sumofmatchweight > threshold:
+                            copylayer = copy.deepcopy(layer)
+                            templayerTable.append(copylayer)
+                            tempkeywordweight.append(sumofmatchweight)
+                            # print(copylayer, sumofmatchweight)
+                            if sequencelength(copylayer) > maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                maxsequencelength = sequencelength(copylayer)
+                                maxsequencesupport = sumofmatchweight
+                                maxlayer = copy.deepcopy(copylayer)
+                            elif sequencelength(copylayer) == maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
+                                if sumofmatchweight > maxsequencesupport:
+                                    maxlayer = copy.deepcopy(copylayer)
+                                    maxsequencesupport = sumofmatchweight
+                        sumofmatchweight = 0
+                    layer1 = []
+            if not templayerTable:
+                break
+            layerTable = copy.deepcopy(templayerTable)
+            keywordweight = copy.deepcopy(tempkeywordweight)
+            templayerTable = []
+            tempkeywordweight = []
 
-    for x in range(len(layerTable)):
-        if sequencelength(layerTable[x]) > maxsequencelength:
-            maxsequencelength = sequencelength(layerTable[x])
-            maxsequencesupport = keywordweight[x]
-            layer = copy.deepcopy(layerTable[x])
-        elif sequencelength(layerTable[x]) == maxsequencelength:
-            if keywordweight[x] > maxsequencesupport:
-                layer = copy.deepcopy(layerTable[x])
-                maxsequencesupport = keywordweight[x]
     if maxsequencelength > 0:
-        for x in range(len(layer)):
-            for y in range(len(layer[x])):
-                writeKeyword.cells(keywordorder + 1, sequenceorder).value = layer[x][y]
+        for x in range(len(maxlayer)):
+            for y in range(len(maxlayer[x])):
+                writeKeyword.cells(keywordorder + 1, sequenceorder).value = maxlayer[x][y]
                 sequenceorder = sequenceorder + 1
         keywordorder = keywordorder + 1
-        print(layer)
-
+        print(maxlayer)
     maxsequencelength = 0
     maxsequencesupport = 0
     sequenceorder = 1
     layer0.pop()
+    maxlayer = []
+    layercompare = []
     layer = []
     layerTable = []
     layerTable1 = []
