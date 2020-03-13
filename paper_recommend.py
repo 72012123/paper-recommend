@@ -6,15 +6,16 @@ wa = xw.Book("frequentitem.xlsx")
 wb = xw.Book("author.xlsx")
 wc = xw.Book("keyword.xlsx")
 wd = xw.Book("sequencial.xlsx")
-we = xw.Book()
+we = xw.Book("threshold.xlsx")
+wf = xw.Book()
 
 read_item = wa.sheets[0]
 read_author = wb.sheets[0]
 read_keyword = wc.sheets[0]
 read_sequence = wd.sheets[0]
-writeKeyword = we.sheets['工作表1']#writeKeyword.cells(x, y).value
+read_threshold = we.sheets[0]
+writeKeyword = wf.sheets['工作表1']#writeKeyword.cells(x, y).value
 
-threshold = 0.3  #author average = 4.92794
 dataSize = 156384
 keywordSize = 20343
 author = np.zeros((2, dataSize))
@@ -24,6 +25,7 @@ sequence_list = [[0 for y in range(8)] for x in range(dataSize)]
 matchweight = [0 for x in range(dataSize)]
 matchtable = [[0 for y in range(0)] for x in range(keywordSize)]  # 每個keyword配對成功的
 matchnumber = [0 for x in range(keywordSize)]  # 每個keyword組合符合的數量
+threshold = [0 for x in range(keywordSize)]
 maxlayer = []
 layer = []
 layer0 = []
@@ -83,6 +85,7 @@ def checkitem(item, match):
             return True
     return False
 
+
 itemset = read_item.range('a1:a20343').value
 itemset = [round(x) for x in itemset]
 author = read_author.range('a2:b156385').value
@@ -102,6 +105,8 @@ for i in range(dataSize):
     sequence_list[i][7] = sequence[i][35:40]
     sequence_list[i] = delzero(sequence_list[i])
 
+threshold = read_threshold.range('b1:b20343').value
+
 for i in range(dataSize):
     matchweight[i] = author[i][1] / 294
 
@@ -111,7 +116,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
     itemposition = finditemposition(keyword[i])
     layer.append(layer0)
     layercompare.append(layer0)
-    print(layer0)
+    print(layer0, threshold[i])
     for j in range(dataSize):  # dataSize
         findkeyword = sequencesuperset(sequence_list[j], layer)
         if findkeyword > 0:
@@ -123,7 +128,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                         if x == keyword[l]:
                             matchnumber[l] = matchnumber[l] + matchweight[j]
     for j in range(keywordSize):  # keywordSize
-        if matchnumber[j] > threshold and finditemposition(keyword[j]) < itemposition:
+        if matchnumber[j] > threshold[i] and finditemposition(keyword[j]) < itemposition:
             matchtable[i].append(keyword[j])
         matchnumber[j] = 0
     print(len(matchtable[i]), len(paperkeyword))
@@ -140,7 +145,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                         for k in range(len(paperkeyword)):
                             if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
                                 sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
-                        if sumofmatchweight > threshold:
+                        if sumofmatchweight > threshold[i]:
                             copylayer = copy.deepcopy(layer)
                             layerTable.append(copylayer)
                             keywordweight.append(sumofmatchweight)
@@ -167,7 +172,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                             for k in range(len(paperkeyword)):
                                 if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
                                     sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
-                            if sumofmatchweight > threshold:
+                            if sumofmatchweight > threshold[i]:
                                 copylayer = copy.deepcopy(layer)
                                 layerTable.append(copylayer)
                                 keywordweight.append(sumofmatchweight)
@@ -191,7 +196,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                     for k in range(len(paperkeyword)):
                         if sequencesuperset(sequence_list[paperkeyword[k]], layer) > 0:
                             sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
-                        if sumofmatchweight > threshold:
+                        if sumofmatchweight > threshold[i]:
                             copylayer = copy.deepcopy(layer)
                             templayerTable.append(copylayer)
                             tempkeywordweight.append(sumofmatchweight)
