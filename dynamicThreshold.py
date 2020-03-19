@@ -1,6 +1,7 @@
 import xlwings as xw
 import numpy as np
 import copy
+import math
 
 wb = xw.Book("author.xlsx")
 wc = xw.Book("keyword.xlsx")
@@ -112,10 +113,9 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
             paperkeyword.append(j)
             sumthreshold = sumthreshold + matchweight[j]
 
-    if len(paperkeyword) > 200:
-        threshold = (sumthreshold/len(paperkeyword))*10
-    elif 200 > len(paperkeyword) > 0:
-        threshold = sumthreshold * 0.15
+    if len(paperkeyword) > 0:
+        threshold = (sumthreshold/len(paperkeyword))*2.5*math.log(len(paperkeyword))
+        
     writeKeyword.cells(i + 1, 1).value = keyword[i]
     writeKeyword.cells(i + 1, 2).value = threshold
     print(keyword[i], sumthreshold, len(paperkeyword), threshold)
