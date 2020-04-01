@@ -3,21 +3,21 @@ import numpy as np
 import copy
 import math
 
-wb = xw.Book("author.xlsx")
+wb = xw.Book("citation.xlsx")
 wc = xw.Book("keyword.xlsx")
 wd = xw.Book("sequencial.xlsx")
 we = xw.Book()
 
-read_author = wb.sheets[0]
+read_citation = wb.sheets[0]
 read_keyword = wc.sheets[0]
 read_sequence = wd.sheets[0]
-writeKeyword = we.sheets['工作表1']#writeKeyword.cells(x, y).value
+writeKeyword = we.sheets['工作表1']  # writeKeyword.cells(x, y).value
 
-threshold = 0 #author average = 4.92794
+threshold = 0  # author average = 4.92794
 sumthreshold = 0
 dataSize = 156384
 keywordSize = 20343
-author = np.zeros((2, dataSize))
+citation = np.zeros((2, dataSize))
 keyword = np.zeros(keywordSize)
 sequence = np.zeros((40, dataSize))
 sequence_list = [[0 for y in range(8)] for x in range(dataSize)]
@@ -44,7 +44,7 @@ itemposition = 0  # item在frequentitem的位置
 
 
 def sequencelength(sequence):
-  return sum(len(i) for i in sequence)
+    return sum(len(i) for i in sequence)
 
 
 def delzero(sequenceset):
@@ -82,8 +82,8 @@ def checkitem(item, match):
     return False
 
 
-author = read_author.range('a2:b156385').value
-author = [[round(x) for x in y] for y in author]
+citation = read_citation.range('a1:b156384').value
+citation = [[round(x) for x in y] for y in citation]
 keyword = read_keyword.range('a2:a20344').value
 keyword = [round(x) for x in keyword]
 sequence = read_sequence.range('a1:an156384').value
@@ -100,7 +100,8 @@ for i in range(dataSize):
     sequence_list[i] = delzero(sequence_list[i])
 
 for i in range(dataSize):
-    matchweight[i] = author[i][1] / 294
+    if citation[i][1] > 0:
+        matchweight[i] = math.log(citation[i][1])
 
 for i in range(keywordSize):  # 找出單個keyword位置keywordSize
     layer0.append(keyword[i])
@@ -114,8 +115,8 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
             sumthreshold = sumthreshold + matchweight[j]
 
     if len(paperkeyword) > 0:
-        threshold = (sumthreshold/len(paperkeyword))*2.5*math.log(len(paperkeyword))
-        
+        threshold = (sumthreshold / len(paperkeyword)) * 2.5 * math.log(len(paperkeyword))
+
     writeKeyword.cells(i + 1, 1).value = keyword[i]
     writeKeyword.cells(i + 1, 2).value = threshold
     print(keyword[i], sumthreshold, len(paperkeyword), threshold)
