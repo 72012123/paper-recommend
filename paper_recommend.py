@@ -1,16 +1,17 @@
 import xlwings as xw
 import numpy as np
 import copy
+import math
 
 wa = xw.Book("frequentitem.xlsx")
-wb = xw.Book("author.xlsx")
+wb = xw.Book("citation.xlsx")
 wc = xw.Book("keyword.xlsx")
 wd = xw.Book("sequencial.xlsx")
-we = xw.Book("threshold.xlsx")
+we = xw.Book("citationthreshold.xlsx")
 wf = xw.Book()
 
 read_item = wa.sheets[0]
-read_author = wb.sheets[0]
+read_citation = wb.sheets[0]
 read_keyword = wc.sheets[0]
 read_sequence = wd.sheets[0]
 read_threshold = we.sheets[0]
@@ -18,7 +19,7 @@ writeKeyword = wf.sheets['工作表1']#writeKeyword.cells(x, y).value
 
 dataSize = 156384
 keywordSize = 20343
-author = np.zeros((2, dataSize))
+citation = np.zeros((2, dataSize))
 keyword = np.zeros(keywordSize)
 sequence = np.zeros((40, dataSize))
 sequence_list = [[0 for y in range(8)] for x in range(dataSize)]
@@ -88,8 +89,8 @@ def checkitem(item, match):
 
 itemset = read_item.range('a1:a20343').value
 itemset = [round(x) for x in itemset]
-author = read_author.range('a2:b156385').value
-author = [[round(x) for x in y] for y in author]
+citation = read_citation.range('a1:b156384').value
+citation = [[round(x) for x in y] for y in citation]
 keyword = read_keyword.range('a2:a20344').value
 keyword = [round(x) for x in keyword]
 sequence = read_sequence.range('a1:an156384').value
@@ -106,9 +107,12 @@ for i in range(dataSize):
     sequence_list[i] = delzero(sequence_list[i])
 
 threshold = read_threshold.range('b1:b20343').value
+for i in range(keywordSize):
+    threshold[i] = threshold[i] * 0.47
 
 for i in range(dataSize):
-    matchweight[i] = author[i][1] / 294
+    if citation[i][1] > 0:
+        matchweight[i] = math.log(citation[i][1])
 
 for i in range(keywordSize):  # 找出單個keyword位置keywordSize
     layer0.append(keyword[i])
@@ -133,7 +137,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
         matchnumber[j] = 0
     print(len(matchtable[i]), len(paperkeyword))
     layer = []
-    for x in range(3):
+    for x in range(5):
         if (x % 2) == 0:
             if not layerTable:
                 for j in range(len(matchtable[i]) - 1):
@@ -174,9 +178,9 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                                     sumofmatchweight = sumofmatchweight + matchweight[paperkeyword[k]]
                             if sumofmatchweight > threshold[i]:
                                 copylayer = copy.deepcopy(layer)
-                                layerTable.append(copylayer)
-                                keywordweight.append(sumofmatchweight)
-                                # print(copylayer, sumofmatchweight)
+                                templayerTable.append(copylayer)
+                                tempkeywordweight.append(sumofmatchweight)
+                                print(copylayer, sumofmatchweight)
                                 if sequencelength(copylayer) > maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
                                     maxsequencelength = sequencelength(copylayer)
                                     maxsequencesupport = sumofmatchweight
@@ -186,6 +190,12 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                                         maxlayer = copy.deepcopy(copylayer)
                                         maxsequencesupport = sumofmatchweight
                             sumofmatchweight = 0
+                if not templayerTable:
+                    break
+                layerTable = copy.deepcopy(templayerTable)
+                keywordweight = copy.deepcopy(tempkeywordweight)
+                templayerTable = []
+                tempkeywordweight = []
         else:
             for j in range(len(layerTable)):
                 for m in range(len(matchtable[i])):
@@ -200,7 +210,7 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
                             copylayer = copy.deepcopy(layer)
                             templayerTable.append(copylayer)
                             tempkeywordweight.append(sumofmatchweight)
-                            # print(copylayer, sumofmatchweight)
+                            print(copylayer, sumofmatchweight)
                             if sequencelength(copylayer) > maxsequencelength and sequencesuperset(copylayer, layercompare) > 0:
                                 maxsequencelength = sequencelength(copylayer)
                                 maxsequencesupport = sumofmatchweight
@@ -219,10 +229,13 @@ for i in range(keywordSize):  # 找出單個keyword位置keywordSize
             tempkeywordweight = []
 
     if maxsequencelength > 0:
+        writeKeyword.cells(keywordorder + 1, 1).value = keyword[i]
         for x in range(len(maxlayer)):
             for y in range(len(maxlayer[x])):
-                writeKeyword.cells(keywordorder + 1, sequenceorder).value = maxlayer[x][y]
+                writeKeyword.cells(keywordorder + 1, sequenceorder + 1).value = maxlayer[x][y]
                 sequenceorder = sequenceorder + 1
+        for x in range(6 - sequencelength(maxlayer)):
+            writeKeyword.cells(keywordorder + 1, sequenceorder + x + 1).value = 0
         keywordorder = keywordorder + 1
         print(maxlayer)
     maxsequencelength = 0
